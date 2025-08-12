@@ -1,6 +1,7 @@
 package com.jifunze.online.servicesImpl;
 
 import com.jifunze.online.dtos.StudentRegistrationRequest;
+import com.jifunze.online.dtos.StudentRegistrationResponse;
 import com.jifunze.online.entity.Students;
 import com.jifunze.online.entity.User;
 import com.jifunze.online.repos.StudentsRepository;
@@ -8,12 +9,12 @@ import com.jifunze.online.repos.UserRepository;
 import com.jifunze.online.services.StudentService;
 import com.jifunze.online.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class StudentServiceImpl implements StudentService {
@@ -23,50 +24,48 @@ public class StudentServiceImpl implements StudentService {
     
     @Autowired
     private UserRepository userRepository;
+
+    private  final PasswordEncoder passwordEncoder;
     
     @Autowired
     private UserService userService;
-    
+
+    public StudentServiceImpl(PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder;
+    }
+
     @Override
-    public Map<String, Object> registerStudent(StudentRegistrationRequest request) {
-        Map<String, Object> response = new HashMap<>();
-        
+    public StudentRegistrationResponse registerStudent(StudentRegistrationRequest request) {
         try {
-            // Check if user already exists in either table
-            if (userService.existsByEmail(request.getEmail())) {
-                response.put("message", "User with this email already exists");
-                response.put("status", "error");
-                return response;
-            }
-            
+            // Check if user already exists by phone number
             if (request.getPhoneNumber() != null && userService.existsByPhoneNumber(request.getPhoneNumber())) {
-                response.put("message", "User with this phone number already exists");
-                response.put("status", "error");
-                return response;
-            }
-            
-            if (studentsRepository.existsByEmail(request.getEmail())) {
-                response.put("message", "Student with this email already exists");
-                response.put("status", "error");
-                return response;
+                return StudentRegistrationResponse.builder()
+                    .message("User with this phone number already exists")
+                    .status("error")
+                    .build();
             }
             
             if (request.getPhoneNumber() != null && studentsRepository.existsByPhoneNumber(request.getPhoneNumber())) {
-                response.put("message", "Student with this phone number already exists");
-                response.put("status", "error");
-                return response;
+                return StudentRegistrationResponse.builder()
+                    .message("Student with this phone number already exists")
+                    .status("error")
+                    .build();
             }
+            
+            // Generate email from phone number
+            String email = request.getPhoneNumber() + "@jifunze.online";
             
             // Create User entity
             User user = new User();
-            user.setEmail(request.getEmail());
-            user.setPassword(request.getPassword());
+            user.setEmail(email);
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
             user.setFullName(request.getFullName());
             user.setPhoneNumber(request.getPhoneNumber());
             user.setRole(User.UserRole.STUDENT);
             user.setActive(true);
             user.setCreatedAt(LocalDateTime.now());
             user.setHasActiveSubscription(false);
+            user.setCommissionRate(new java.math.BigDecimal("0.00")); // Students have no commission
             
             // Save User
             User savedUser = userRepository.save(user);
@@ -74,7 +73,6 @@ public class StudentServiceImpl implements StudentService {
             // Create Students entity
             Students student = new Students();
             student.setName(request.getFullName());
-            student.setEmail(request.getEmail());
             student.setPhoneNumber(request.getPhoneNumber());
             student.setPassword(request.getPassword());
             student.setRole(request.getRole());
@@ -89,38 +87,35 @@ public class StudentServiceImpl implements StudentService {
             Students savedStudent = studentsRepository.save(student);
             
             // Prepare response
-            response.put("message", "Student registration successful");
-            response.put("status", "success");
-            response.put("userId", savedUser.getId());
-            response.put("studentId", savedStudent.getId());
-            response.put("email", savedUser.getEmail());
-            response.put("fullName", savedUser.getFullName());
+            return StudentRegistrationResponse.builder()
+                .message("Student registration successful")
+                .status("success")
+                .studentId(savedStudent.getId())
+                .fullName(savedUser.getFullName())
+                .phoneNumber(savedUser.getPhoneNumber())
+                .build();
             
         } catch (Exception e) {
-            response.put("message", "Registration failed: " + e.getMessage());
-            response.put("status", "error");
+            return StudentRegistrationResponse.builder()
+                .message("Registration failed: " + e.getMessage())
+                .status("error")
+                .build();
         }
-        
-        return response;
     }
     
     @Override
     public Students getStudentById(Long id) {
-        return studentsRepository.findById(id).orElse(null);
-    }
-    
-    @Override
-    public Students getStudentByEmail(String email) {
-        return studentsRepository.findByEmail(email).orElse(null);
-    }
-    
-    @Override
-    public boolean existsByEmail(String email) {
-        return studentsRepository.existsByEmail(email);
+        Optional<Students> student = studentsRepository.findById(id);
+        return student.orElse(null);
     }
     
     @Override
     public boolean existsByPhoneNumber(String phoneNumber) {
         return studentsRepository.existsByPhoneNumber(phoneNumber);
+    }
+    
+    @Override
+    public java.util.List<Students> getAll() {
+        return studentsRepository.findAll();
     }
 } 
