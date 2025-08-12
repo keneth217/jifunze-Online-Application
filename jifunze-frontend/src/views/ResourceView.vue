@@ -82,8 +82,21 @@
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
+        <p class="mt-4 text-gray-600">Loading resources...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="text-center py-12">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {{ error }}
+        </div>
+      </div>
+
       <!-- Resources Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-else-if="filteredResources.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div v-for="resource in filteredResources" :key="resource.id" class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
           <div class="p-6">
             <div class="flex items-center justify-between mb-4">
@@ -94,14 +107,14 @@
                   </svg>
                 </div>
                 <div class="ml-3">
-                  <span :class="resource.type === 'premium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 text-xs font-medium rounded-full">
-                    {{ resource.type }}
+                  <span :class="resource.isPremium ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 text-xs font-medium rounded-full">
+                    {{ resource.isPremium ? 'premium' : 'free' }}
                   </span>
                 </div>
               </div>
               <div class="text-right">
-                <div class="text-sm text-gray-500">{{ resource.duration }}</div>
-                <div class="text-sm text-gray-500">{{ resource.fileSize }}</div>
+                <div class="text-sm text-gray-500">{{ resource.fileType.toUpperCase() }}</div>
+                <div class="text-sm text-gray-500">{{ (resource.fileSize / 1024 / 1024).toFixed(1) }} MB</div>
               </div>
             </div>
 
@@ -109,13 +122,13 @@
             <p class="text-gray-600 text-sm mb-4">{{ resource.description }}</p>
 
             <div class="flex items-center justify-between mb-4">
-              <span class="text-sm text-gray-500">{{ resource.subject }}</span>
+              <span class="text-sm text-gray-500">{{ resource.category }}</span>
               <div class="flex items-center text-sm text-gray-500">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                 </svg>
-                {{ resource.views }}
+                {{ resource.viewCount }}
               </div>
             </div>
 
@@ -126,13 +139,21 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                   </svg>
                 </div>
-                <span class="ml-2 text-sm text-gray-600">{{ resource.author }}</span>
+                <span class="ml-2 text-sm text-gray-600">{{ resource.uploadedBy?.fullName || 'Unknown' }}</span>
               </div>
               <button class="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors">
-                {{ resource.type === 'premium' ? 'Purchase' : 'Download' }}
+                {{ resource.isPremium ? 'Purchase' : 'Download' }}
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- No Resources Found -->
+      <div v-else class="text-center py-12">
+        <div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+          <p class="text-lg font-medium">No resources found</p>
+          <p class="text-sm">Try adjusting your search criteria or browse different categories.</p>
         </div>
       </div>
 
@@ -161,95 +182,106 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import axios from 'axios'
 
+const route = useRoute()
 const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedType = ref('')
-
-const resources = ref([
-  {
-    id: 1,
-    title: 'Advanced Calculus: Derivatives and Integrals',
-    description: 'Comprehensive guide to calculus fundamentals with practical examples and exercises.',
-    subject: 'Mathematics',
-    type: 'premium',
-    duration: '3 hours',
-    fileSize: '2.5 MB',
-    views: 1247,
-    author: 'Dr. Sarah Johnson'
-  },
-  {
-    id: 2,
-    title: 'Physics Fundamentals: Mechanics',
-    description: 'Introduction to classical mechanics covering Newton\'s laws and motion principles.',
-    subject: 'Science',
-    type: 'free',
-    duration: '2 hours',
-    fileSize: '1.8 MB',
-    views: 892,
-    author: 'Prof. Michael Chen'
-  },
-  {
-    id: 3,
-    title: 'English Literature: Shakespeare Analysis',
-    description: 'Deep dive into Shakespeare\'s works with modern interpretations and analysis.',
-    subject: 'Literature',
-    type: 'premium',
-    duration: '4 hours',
-    fileSize: '3.2 MB',
-    views: 567,
-    author: 'Dr. Emily Davis'
-  },
-  {
-    id: 4,
-    title: 'Computer Science: Data Structures',
-    description: 'Learn fundamental data structures and algorithms with practical implementations.',
-    subject: 'Computer Science',
-    type: 'free',
-    duration: '2.5 hours',
-    fileSize: '2.1 MB',
-    views: 1345,
-    author: 'Prof. Robert Wilson'
-  },
-  {
-    id: 5,
-    title: 'World History: Ancient Civilizations',
-    description: 'Explore the rise and fall of ancient civilizations across different continents.',
-    subject: 'History',
-    type: 'premium',
-    duration: '3.5 hours',
-    fileSize: '2.8 MB',
-    views: 723,
-    author: 'Dr. Lisa Thompson'
-  },
-  {
-    id: 6,
-    title: 'Business Management: Strategic Planning',
-    description: 'Learn strategic planning and business management principles for modern organizations.',
-    subject: 'Business',
-    type: 'premium',
-    duration: '3 hours',
-    fileSize: '2.3 MB',
-    views: 456,
-    author: 'Prof. James Anderson'
+interface Resource {
+  id: number
+  title: string
+  description: string
+  category: string
+  isPremium: boolean
+  price?: number
+  fileName: string
+  fileType: string
+  fileSize: number
+  downloadCount: number
+  viewCount: number
+  thumbnailUrl?: string
+  uploadedBy?: {
+    fullName: string
   }
-])
+}
+
+const resources = ref<Resource[]>([])
+const loading = ref(false)
+const error = ref('')
+
+// Configure axios
+axios.defaults.baseURL = 'http://localhost:8080'
+axios.defaults.withCredentials = true
+
+// Map frontend categories to backend categories
+const categoryMapping: Record<string, string> = {
+  'lower-secondary': 'MATHEMATICS',
+  'upper-secondary': 'SCIENCE',
+  'junior-secondary': 'LANGUAGES',
+  'high-school': 'COMPUTER_SCIENCE'
+}
+
+const fetchResources = async (category?: string) => {
+  loading.value = true
+  error.value = ''
+
+  try {
+    let url = '/api/resources'
+    if (category && categoryMapping[category]) {
+      url = `/api/resources/category/${categoryMapping[category]}`
+    }
+
+    const response = await axios.get(url)
+
+    if (response.data.status === 'success') {
+      resources.value = response.data.resources || []
+    } else {
+      error.value = response.data.message || 'Failed to fetch resources'
+    }
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to fetch resources'
+    error.value = errorMessage
+    console.error('Error fetching resources:', err)
+  } finally {
+    loading.value = false
+  }
+}
 
 const filteredResources = computed(() => {
-  return resources.value.filter(resource => {
+  return resources.value.filter((resource: Resource) => {
     const matchesSearch = searchQuery.value === '' ||
       resource.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      resource.description.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      resource.subject.toLowerCase().includes(searchQuery.value.toLowerCase())
+      resource.description.toLowerCase().includes(searchQuery.value.toLowerCase())
 
     const matchesCategory = selectedCategory.value === '' ||
-      resource.subject.toLowerCase() === selectedCategory.value.toLowerCase()
+      resource.category?.toLowerCase() === selectedCategory.value.toLowerCase()
 
     const matchesType = selectedType.value === '' ||
-      resource.type === selectedType.value
+      (selectedType.value === 'premium' ? resource.isPremium : !resource.isPremium)
 
     return matchesSearch && matchesCategory && matchesType
   })
+})
+
+// Watch for route changes to handle category filtering
+watch(() => route.query.category, (newCategory) => {
+  if (newCategory) {
+    selectedCategory.value = newCategory as string
+    fetchResources(newCategory as string)
+  }
+}, { immediate: true })
+
+// Initialize on mount
+onMounted(() => {
+  const categoryFromRoute = route.query.category as string
+  if (categoryFromRoute) {
+    selectedCategory.value = categoryFromRoute
+    fetchResources(categoryFromRoute)
+  } else {
+    fetchResources()
+  }
 })
 </script>
