@@ -3,7 +3,6 @@ package com.jifunze.online.dtos;
 public class StudentRegistrationRequest {
     
     private String fullName;
-    private String email;
     private String phoneNumber;
     private String password;
     private String role = "STUDENT";
@@ -13,9 +12,8 @@ public class StudentRegistrationRequest {
     public StudentRegistrationRequest() {}
     
     // Constructor with all fields
-    public StudentRegistrationRequest(String fullName, String email, String phoneNumber, String password) {
+    public StudentRegistrationRequest(String fullName, String phoneNumber, String password) {
         this.fullName = fullName;
-        this.email = email;
         this.phoneNumber = phoneNumber;
         this.password = password;
     }
@@ -27,14 +25,6 @@ public class StudentRegistrationRequest {
     
     public void setFullName(String fullName) {
         this.fullName = fullName;
-    }
-    
-    public String getEmail() {
-        return email;
-    }
-    
-    public void setEmail(String email) {
-        this.email = email;
     }
     
     public String getPhoneNumber() {
