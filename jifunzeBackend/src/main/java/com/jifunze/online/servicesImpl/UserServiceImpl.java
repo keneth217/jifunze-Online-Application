@@ -4,6 +4,7 @@ import com.jifunze.online.entity.User;
 import com.jifunze.online.repos.UserRepository;
 import com.jifunze.online.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -16,19 +17,47 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserRepository userRepository;
     
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    
     @Override
     public User registerUser(User user) {
         // Set default values
         user.setCreatedAt(LocalDateTime.now());
         user.setActive(true);
         user.setHasActiveSubscription(false);
+        
+        // Set default password as phone number if password is not provided
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            user.setPassword(user.getPhoneNumber());
+        }
+        
+        // Set commission rate based on role
+        if (user.getRole() == User.UserRole.STUDENT) {
+            user.setCommissionRate(new java.math.BigDecimal("0.00")); // Students have no commission
+        } else if (user.getRole() == User.UserRole.INSTRUCTOR) {
+            user.setCommissionRate(new java.math.BigDecimal("0.70")); // Instructors get 70% commission
+        }
+        
+        // Encode password
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        
         return userRepository.save(user);
     }
     
     @Override
     public Optional<User> loginUser(String email, String password) {
         Optional<User> user = userRepository.findByEmail(email);
-        if (user.isPresent() && user.get().getPassword().equals(password)) {
+        if (user.isPresent() && passwordEncoder.matches(password, user.get().getPassword())) {
+            return user;
+        }
+        return Optional.empty();
+    }
+    
+    @Override
+    public Optional<User> loginUserByPhone(String phoneNumber, String password) {
+        Optional<User> user = userRepository.findByPhoneNumber(phoneNumber);
+        if (user.isPresent() && passwordEncoder.matches(password, user.get().getPassword())) {
             return user;
         }
         return Optional.empty();
@@ -42,6 +71,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public Optional<User> getUserByEmail(String email) {
         return userRepository.findByEmail(email);
+    }
+    
+    @Override
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
     }
     
     @Override
