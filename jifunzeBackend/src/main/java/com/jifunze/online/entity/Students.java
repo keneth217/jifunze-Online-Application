@@ -1,9 +1,16 @@
 package com.jifunze.online.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "students")
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class Students {
 
     @Id
@@ -13,8 +20,6 @@ public class Students {
     @Column(name = "name")
     private String name;
 
-    @Column(name = "email")
-    private String email;
 
     @Column(name = "phone_number")
     private String phoneNumber;
@@ -51,13 +56,7 @@ public class Students {
         this.name = name;
     }
 
-    public String getEmail() {
-        return email;
-    }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
 
     public String getPhoneNumber() {
         return phoneNumber;
